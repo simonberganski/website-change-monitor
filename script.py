@@ -41,6 +41,8 @@ SMTP_PROVIDERS = {
     "aol.com": {"host": "smtp.aol.com", "port": 465, "use_ssl": True, "use_tls": False},
     "zoho.com": {"host": "smtp.zoho.com", "port": 587, "use_ssl": False, "use_tls": True},
     "protonmail.com": {"host": "smtp.protonmail.com", "port": 465, "use_ssl": True, "use_tls": False},
+    "hsbi.de": {"host": "smtp.hsbi.de", "port": 587, "use_ssl": False, "use_tls": True},
+
 }
 
 
