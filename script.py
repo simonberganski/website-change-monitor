@@ -14,7 +14,7 @@ import html
 load_dotenv()
 
 def validate_env_vars():
-    """Validiert alle erforderlichen Umgebungsvariablen (ohne ENCRYPTION_KEY)"""
+    """Validiert alle erforderlichen Umgebungsvariablen"""
     required_vars = ['EMAIL', 'EMAIL_PASSWORD', 'LOGIN_USERNAME', 'LOGIN_PASSWORD']
     missing_vars = []
     
@@ -52,7 +52,7 @@ XPATH_BUTTON_STEP_4 = '//*[@id="wrapper"]/div[5]/table/tbody/tr/td/div/div[2]/di
 XPATH_BUTTON_STEP_5 = '//*[@id="wrapper"]/div[5]/table/tbody/tr/td/div/div[2]/form/ul/li/a[2]'
 XPATH_TRACK_AREA = '//*[@id="wrapper"]/div[5]/table/tbody/tr/td/div/div[2]/form/table[2]/tbody'
 
-CONTENT_FILE = 'content_file.txt'  # Ohne Verschlüsselung
+CONTENT_FILE = 'content_file.txt'  # Unverschlüsselte Datei (Workflow übernimmt Verschlüsselung)
 TO_EMAIL = EMAIL
 
 SMTP_PROVIDERS = {
@@ -94,6 +94,7 @@ def get_website_content():
         print("Extrahiere Inhalte...")
         element = driver.find_element(By.XPATH, XPATH_TRACK_AREA)
         html_content = element.get_attribute('outerHTML')
+        print(f"HTML-Inhalt extrahiert: {len(html_content)} Zeichen")
         return html_content
     
     except Exception as e:
@@ -106,6 +107,7 @@ def parse_table(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     rows = soup.find_all('tr')
     data = []
+    
     for row in rows:
         cols = [col.get_text(strip=True) for col in row.find_all(['td', 'th'])]
         if len(cols) >= 9 and cols[0].isdigit():
@@ -121,6 +123,8 @@ def parse_table(html_content):
                 'Datum': cols[8],
                 'Veroeffentlicht': cols[9] if len(cols) > 9 else ''
             })
+    
+    print(f"Gefundene Einträge: {len(data)}")
     return data
 
 def load_previous():
@@ -128,16 +132,20 @@ def load_previous():
         try:
             with open(CONTENT_FILE, 'r', encoding='utf-8') as f:
                 content = f.read()
+                print(f"Vorherige Daten geladen: {len(content)} Zeichen")
                 return parse_table(content)
         except Exception as e:
             print(f"Fehler beim Laden der vorherigen Daten: {e}")
             return []
+    else:
+        print("Keine vorherigen Daten gefunden - erster Lauf")
     return []
 
 def save_current(content):
     try:
         with open(CONTENT_FILE, 'w', encoding='utf-8') as f:
             f.write(content)
+        print(f"Aktuelle Daten gespeichert: {len(content)} Zeichen")
     except Exception as e:
         print(f"Fehler beim Speichern der Daten: {e}")
 
@@ -156,7 +164,6 @@ def send_email(subject, message_content):
             smtp_ssl=smtp["use_ssl"],
             smtp_starttls=smtp["use_tls"]
         )
-        # message_content als String senden, nicht als Liste
         yag.send(to=TO_EMAIL, subject=subject, contents=message_content)
         print("E-Mail erfolgreich gesendet.")
     except Exception as e:
@@ -197,7 +204,7 @@ def format_email_content(differences):
 
 def main():
     try:
-        print("Starte Überwachung...")
+        print("Starte HSBI Noten-Überwachung...")
         html_content = get_website_content()
         current = parse_table(html_content)
         previous = load_previous()
@@ -216,10 +223,6 @@ def main():
             
             # Formatiere die E-Mail mit allen Details
             email_content = format_email_content(differences)
-            
-            # Debug: Zeige E-Mail-Inhalt in der Konsole
-            print("E-Mail Inhalt:")
-            print(email_content)
             
             send_email(f"{WEBSITE_NAME}: {len(differences)} neue Noten erkannt", email_content)
             print("Änderungen erkannt und detaillierte Mail gesendet.")
