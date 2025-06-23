@@ -145,7 +145,7 @@ def get_smtp_settings(email):
     domain = email.split('@')[-1]
     return SMTP_PROVIDERS.get(domain, SMTP_PROVIDERS["gmail.com"])
 
-def send_email(subject, lines):
+def send_email(subject, message_content):
     try:
         smtp = get_smtp_settings(EMAIL)
         yag = yagmail.SMTP(
@@ -156,7 +156,8 @@ def send_email(subject, lines):
             smtp_ssl=smtp["use_ssl"],
             smtp_starttls=smtp["use_tls"]
         )
-        yag.send(to=TO_EMAIL, subject=subject, contents=lines)
+        # message_content als String senden, nicht als Liste
+        yag.send(to=TO_EMAIL, subject=subject, contents=message_content)
         print("E-Mail erfolgreich gesendet.")
     except Exception as e:
         print(f"Fehler beim Senden der E-Mail: {e}")
@@ -169,6 +170,30 @@ def diff_entries(old, new):
         if not prev or row['Note'] != prev['Note'] or row['Veroeffentlicht'] != prev['Veroeffentlicht']:
             changes.append(row)
     return changes
+
+def format_email_content(differences):
+    """Formatiert die E-Mail mit allen Details der Änderungen"""
+    email_content = f"{WEBSITE_NAME} - Neue Noten oder Änderungen erkannt!\n\n"
+    email_content += f"Es wurden {len(differences)} Änderung(en) festgestellt:\n\n"
+    
+    for i, change in enumerate(differences, 1):
+        email_content += f"📚 Änderung {i}:\n"
+        email_content += f"   Modul: {change['Text']}\n"
+        email_content += f"   Prüfungsnummer: {change['PruefNr']}\n"
+        email_content += f"   Note: {change['Note']}\n"
+        email_content += f"   Semester: {change['Semester']}\n"
+        email_content += f"   Status: {change['Status']}\n"
+        email_content += f"   Credits: {change['Credits']}\n"
+        email_content += f"   Prüfungsdatum: {change['Datum']}\n"
+        email_content += f"   Veröffentlichung: {change['Veroeffentlicht']}\n"
+        if change['Vermerk']:
+            email_content += f"   Vermerk: {change['Vermerk']}\n"
+        email_content += "\n" + "-"*50 + "\n\n"
+    
+    email_content += f"Überprüft am: {time.strftime('%d.%m.%Y um %H:%M:%S')}\n"
+    email_content += "Automatische Benachrichtigung vom HSBI Noten-Monitor"
+    
+    return email_content
 
 def main():
     try:
@@ -184,15 +209,20 @@ def main():
 
         if differences:
             print(f"Änderungen erkannt: {len(differences)}")
-            lines = [
-                f"{WEBSITE_NAME} - Es wurden neue Noten oder Änderungen erkannt:\n"
-            ]
-            for d in differences:
-                lines.append(
-                    f"- {d['Text']} | Note: {d['Note']} | Veröffentlichungsdatum: {d['Veroeffentlicht']}"
-                )
-            send_email(f"{WEBSITE_NAME}: Neue Noten erkannt", lines)
-            print("Änderungen erkannt und Mail gesendet.")
+            
+            # Debug: Zeige die erkannten Änderungen in der Konsole
+            for change in differences:
+                print(f"Neue/Geänderte Note: {change['Text']} - Note: {change['Note']}")
+            
+            # Formatiere die E-Mail mit allen Details
+            email_content = format_email_content(differences)
+            
+            # Debug: Zeige E-Mail-Inhalt in der Konsole
+            print("E-Mail Inhalt:")
+            print(email_content)
+            
+            send_email(f"{WEBSITE_NAME}: {len(differences)} neue Noten erkannt", email_content)
+            print("Änderungen erkannt und detaillierte Mail gesendet.")
         else:
             print("Keine Änderungen festgestellt.")
 
@@ -203,7 +233,8 @@ def main():
         print(f"Fehler im Ablauf: {e}")
         # Optional: Fehler-E-Mail senden
         try:
-            send_email(f"{WEBSITE_NAME}: Fehler beim Überwachen", [f"Fehler aufgetreten: {str(e)}"])
+            error_message = f"Fehler beim Überwachen der HSBI-Noten:\n\nFehlermeldung: {str(e)}\n\nZeitpunkt: {time.strftime('%d.%m.%Y um %H:%M:%S')}"
+            send_email(f"{WEBSITE_NAME}: Fehler beim Überwachen", error_message)
         except:
             pass
 
