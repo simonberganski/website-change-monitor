@@ -1,10 +1,8 @@
 name: Run Python Script
-
 on:
   schedule:
    - cron: '0 0 */2 * *' 
   workflow_dispatch:
-
 jobs:
   run-script:
     runs-on: ubuntu-22.04
@@ -12,69 +10,60 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install cryptography
           pip install dnspython
-
       - name: Create Python scripts
         run: |
           cat > decrypt_file.py << 'EOL'
           from cryptography.fernet import Fernet
           import os
-
           def decrypt_file():
               key = os.environ['ENCRYPTION_KEY'].encode()
               f = Fernet(key)
-
               with open('content_file.txt.encrypted', 'rb') as encrypted_file:
                   encrypted_data = encrypted_file.read()
                   
               decrypted_data = f.decrypt(encrypted_data)
-
               with open('content_file.txt', 'wb') as decrypted_file:
                   decrypted_file.write(decrypted_data)
-
+              print("Datei erfolgreich entschlüsselt")
           if __name__ == "__main__":
               decrypt_file()
           EOL
-
           cat > encrypt_file.py << 'EOL'
           from cryptography.fernet import Fernet
           import os
-
           def encrypt_file():
               key = os.environ['ENCRYPTION_KEY'].encode()
               f = Fernet(key)
-
               with open('content_file.txt', 'rb') as file:
                   data = file.read()
                   
               encrypted_data = f.encrypt(data)
-
               with open('content_file.txt.encrypted', 'wb') as encrypted_file:
                   encrypted_file.write(encrypted_data)
-
+              print("Datei erfolgreich verschlüsselt")
           if __name__ == "__main__":
               encrypt_file()
           EOL
-
       - name: Decrypt file if exists
         env:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
         run: |
           if [ -f "content_file.txt.encrypted" ]; then
+            echo "Entschlüssele vorhandene Datei..."
             python decrypt_file.py
+          else
+            echo "Keine verschlüsselte Datei gefunden - erster Lauf"
           fi
-
       - name: Run script
         env:
           EMAIL: ${{ secrets.EMAIL }}
@@ -82,12 +71,16 @@ jobs:
           LOGIN_USERNAME: ${{ secrets.LOGIN_USERNAME }}
           LOGIN_PASSWORD: ${{ secrets.LOGIN_PASSWORD }}
         run: python script.py
-
       - name: Encrypt and save file
         env:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-        run: python encrypt_file.py
-
+        run: |
+          if [ -f "content_file.txt" ]; then
+            echo "Verschlüssele Datei..."
+            python encrypt_file.py
+          else
+            echo "Keine content_file.txt zum Verschlüsseln gefunden!"
+          fi
       - name: Commit encrypted file
         run: |
           git config --global user.name 'GitHub Action'
