@@ -9,14 +9,13 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import html
-from cryptography.fernet import Fernet
 
 # Load environment variables
 load_dotenv()
 
 def validate_env_vars():
-    """Validiert alle erforderlichen Umgebungsvariablen"""
-    required_vars = ['EMAIL', 'EMAIL_PASSWORD', 'LOGIN_USERNAME', 'LOGIN_PASSWORD', 'ENCRYPTION_KEY']
+    """Validiert alle erforderlichen Umgebungsvariablen (ohne ENCRYPTION_KEY)"""
+    required_vars = ['EMAIL', 'EMAIL_PASSWORD', 'LOGIN_USERNAME', 'LOGIN_PASSWORD']
     missing_vars = []
     
     for var in required_vars:
@@ -31,32 +30,8 @@ def validate_env_vars():
     
     return True
 
-def setup_encryption():
-    """Richtet die Verschlüsselung ein und generiert bei Bedarf einen neuen Key"""
-    encryption_key = os.getenv('ENCRYPTION_KEY')
-    
-    if not encryption_key:
-        print("ENCRYPTION_KEY nicht gefunden. Generiere neuen Key...")
-        new_key = Fernet.generate_key()
-        print(f"Neuer Encryption Key generiert: {new_key.decode()}")
-        print("Bitte fügen Sie diesen Key zu Ihrer .env-Datei hinzu:")
-        print(f"ENCRYPTION_KEY={new_key.decode()}")
-        return None
-    
-    try:
-        return Fernet(encryption_key.encode())
-    except Exception as e:
-        print(f"Fehler beim Initialisieren der Verschlüsselung: {e}")
-        print("Möglicherweise ist der ENCRYPTION_KEY ungültig.")
-        return None
-
 # Umgebungsvariablen validieren
 if not validate_env_vars():
-    exit(1)
-
-# Verschlüsselung einrichten
-fernet = setup_encryption()
-if not fernet:
     exit(1)
 
 # Umgebungsvariablen laden
@@ -77,7 +52,7 @@ XPATH_BUTTON_STEP_4 = '//*[@id="wrapper"]/div[5]/table/tbody/tr/td/div/div[2]/di
 XPATH_BUTTON_STEP_5 = '//*[@id="wrapper"]/div[5]/table/tbody/tr/td/div/div[2]/form/ul/li/a[2]'
 XPATH_TRACK_AREA = '//*[@id="wrapper"]/div[5]/table/tbody/tr/td/div/div[2]/form/table[2]/tbody'
 
-CONTENT_FILE = 'content_file.txt.encrypted'
+CONTENT_FILE = 'content_file.txt'  # Ohne Verschlüsselung
 TO_EMAIL = EMAIL
 
 SMTP_PROVIDERS = {
@@ -151,10 +126,9 @@ def parse_table(html_content):
 def load_previous():
     if os.path.exists(CONTENT_FILE):
         try:
-            with open(CONTENT_FILE, 'rb') as f:
-                encrypted = f.read()
-                decrypted = fernet.decrypt(encrypted)
-                return parse_table(decrypted.decode())
+            with open(CONTENT_FILE, 'r', encoding='utf-8') as f:
+                content = f.read()
+                return parse_table(content)
         except Exception as e:
             print(f"Fehler beim Laden der vorherigen Daten: {e}")
             return []
@@ -162,9 +136,8 @@ def load_previous():
 
 def save_current(content):
     try:
-        encrypted = fernet.encrypt(content.encode())
-        with open(CONTENT_FILE, 'wb') as f:
-            f.write(encrypted)
+        with open(CONTENT_FILE, 'w', encoding='utf-8') as f:
+            f.write(content)
     except Exception as e:
         print(f"Fehler beim Speichern der Daten: {e}")
 
